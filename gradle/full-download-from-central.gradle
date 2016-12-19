@@ -68,12 +68,12 @@ task createRepo() << {
 
 			if (it.files.isEmpty()) {
 				def url = new URL("http://search.maven.org/remotecontent?filepath=${moduleDirName}/${fileName}")
-				println "Dn  ${url}..."
+				println "Dn ${url}..."
 
 				URLConnection conn = url.openConnection()
 				url = new URL(conn.headerFields['Location'].find())
 
-				url.withInputStream{ i -> destFile.withOutputStream{ it << i } }
+				url.withInputStream { i -> destFile.withOutputStream { it << i } }
 			} else {
 				File src = it.files.find();
 				println "Cp ${src}..."
