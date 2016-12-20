@@ -20,7 +20,7 @@ def central(String group, String version) {
 /**
  * @param entry format ${group}:${version}
  */
-def a(String entry) {
+ext.a = { String entry ->
 	def x = entry.split(':')
 	def deps = central(x[0], x[1])
 		.collect {
