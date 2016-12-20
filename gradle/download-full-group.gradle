@@ -1,0 +1,43 @@
+apply from: 'https://raw.githubusercontent.com/idosu/scripts/master/gradle/full-download-from-central.gradle'
+
+def central(String group, String version) {
+	def q = URLEncoder.encode("g:\"${group}\" AND v:\"${version}\"", "UTF-8")
+	def start = 0;
+	def rows = 20;
+	String url = "http://search.maven.org/solrsearch/select?q=${q}&wt=json";
+
+	def res = json("${url}&rows=${rows}").response
+	def docs = []
+	docs += res.docs
+
+	if (res.numFound > rows) {
+		docs += json("${url}&start=${rows}&rows=${res.numFound - rows}").docs
+	}
+
+	return docs
+}
+
+/**
+ * @param entry format ${group}:${version}
+ */
+def a(String entry) {
+	def x = entry.split(':')
+	def deps = central(x[0], x[1])
+		.collect {
+			"compile '${it.g}:${it.a}:${it.v}'"
+		}
+		.join(";")
+	
+	def file = file('download.gradle')
+
+	file.text = """
+		apply plugin: 'java'
+		apply plugin: 'eclipse'
+		repositories { mavenCentral() }
+		dependencies { ${deps} }
+	"""
+	exec { commandLine 'gradle.bat', '--no-daemon', '-b', file.name, 'eclipseClasspath' }
+}
+
+task download()
+createRepo.dependsOn download
