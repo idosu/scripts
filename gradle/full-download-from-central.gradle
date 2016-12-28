@@ -19,9 +19,9 @@ ext.json = { String url ->
 }
 
 def central(String group, String artifact, String version) {
-	def q = URLEncoder.encode("g:\"${group}\" AND a:\"${artifact}\" AND v:\"${version}\"", "UTF-8")
+	def q = URLEncoder.encode("g:\"$group\" AND a:\"$artifact\" AND v:\"$version\"", "UTF-8")
 	def rows = 1
-	return json("http://search.maven.org/solrsearch/select?q=${q}&rows=${rows}&wt=json").response.docs[0]
+	return json("http://search.maven.org/solrsearch/select?q=$q&rows=$rows&wt=json").response.docs[0]
 }
 
 task createRepo() << {
@@ -55,20 +55,20 @@ task createRepo() << {
 			artifact: it.artifact,
 			version: it.version,
 			ec: it.ec,
-			files: fileTree(dir: dir, include: "${it.group}/${it.artifact}/${it.version}/*/${it.artifact}-${it.version}${it.ec}")
+			files: fileTree(dir: dir, include: "$it.group/$it.artifact/$it.version/*/$it.artifact-$it.version$it.ec")
 		] }
 		.each {
 			// TODO(idosu): Do not exit on failure
-			String moduleDirName = "${it.group.replace('.','/')}/${it.artifact}/${it.version}"
+			String moduleDirName = "${it.group.replace('.','/')}/$it.artifact/$it.version"
 			File moduleDir = new File(repo, moduleDirName)
 			GFileUtils.mkdirs(moduleDir)
 			
-			String fileName = "${it.artifact}-${it.version}${it.ec}"
+			String fileName = "${it.artifact}-$it.version$it.ec"
 			File destFile = new File(moduleDir, fileName)
 
 			if (it.files.isEmpty()) {
-				def url = new URL("http://search.maven.org/remotecontent?filepath=${moduleDirName}/${fileName}")
-				println "Dn ${url}..."
+				def url = new URL("http://search.maven.org/remotecontent?filepath=$moduleDirName/$fileName")
+				logger.lifecycle "Dn $url..."
 
 				URLConnection conn = url.openConnection()
 				url = new URL(conn.headerFields['Location'].find())
@@ -76,9 +76,9 @@ task createRepo() << {
 				url.withInputStream { i -> destFile.withOutputStream { it << i } }
 			} else {
 				File src = it.files.find();
-				println "Cp ${src}..."
+				logger.lifecycle "Cp $src..."
 				if (it.files.size() != 1) {
-					println "  WARN: Duplicated: ${it}"
+					logger.lifecycle "  WARN: Duplicated: $it"
 				}
 				GFileUtils.copyFile(src, destFile)
 			}
