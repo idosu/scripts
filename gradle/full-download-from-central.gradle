@@ -15,13 +15,35 @@ ext.json = { String url ->
 	def jsonSlurper = new groovy.json.JsonSlurper()
 	def jsonUrl = new URL(url)
 
-	return jsonSlurper.parseText(jsonUrl.text);
+	def response = jsonUrl.text;
+
+	logger.info "URL: $url"
+	logger.info "RESPONSE: $response"
+
+	return jsonSlurper.parseText(response);
+}
+
+URL centralRemoteContent(String filepath) {
+	def url = new URL("http://search.maven.org/remotecontent?filepath=$filepath")
+	URLConnection conn = url.openConnection()
+	return new URL(conn.headerFields['Location'].find())
 }
 
 def central(String group, String artifact, String version) {
 	def q = URLEncoder.encode("g:\"$group\" AND a:\"$artifact\" AND v:\"$version\"", "UTF-8")
 	def rows = 1
-	return json("http://search.maven.org/solrsearch/select?q=$q&rows=$rows&wt=json").response.docs[0]
+	
+	def docs = json("http://search.maven.org/solrsearch/select?q=$q&rows=$rows&wt=json").response.docs[0]
+	if (docs) {
+		return docs.ec
+	}
+	
+	logger.warn "Could not find $group:$artifact:$version in central search, trying to escape html..."
+	return centralRemoteContent("${group.replace('.', '/')}/$artifact/$version").text
+		.findAll(/<a href="[^"]+">$artifact-$version([^<]+)<\/a>/) { _, ec -> ec }
+		.findAll({ !it.endsWith('.sha1') })
+		.findAll({ !it.endsWith('.md5') })
+		.findAll({ !it.endsWith('.asc') })
 }
 
 task createRepo() << {
@@ -39,7 +61,7 @@ task createRepo() << {
 			group: it.group,
 			artifact: it.artifact,
 			version: it.version,
-			ec: central(it.group, it.artifact, it.version).ec
+			ec: central(it.group, it.artifact, it.version)
 		] }
 		.collect { x ->
 			x.ec.collect { [
@@ -63,22 +85,22 @@ task createRepo() << {
 			File moduleDir = new File(repo, moduleDirName)
 			GFileUtils.mkdirs(moduleDir)
 			
-			String fileName = "${it.artifact}-$it.version$it.ec"
+			String fileName = "$it.artifact-$it.version$it.ec"
 			File destFile = new File(moduleDir, fileName)
 
 			if (it.files.isEmpty()) {
-				def url = new URL("http://search.maven.org/remotecontent?filepath=$moduleDirName/$fileName")
+				URL url = centralRemoteContent("$moduleDirName/$fileName");
 				logger.lifecycle "Dn $url..."
-
-				URLConnection conn = url.openConnection()
-				url = new URL(conn.headerFields['Location'].find())
-
-				url.withInputStream { i -> destFile.withOutputStream { it << i } }
+				try {
+					url.withInputStream { i -> destFile.withOutputStream { it << i } }
+				} catch (Exception e) {
+					logger.error "Could not get $url...", e
+				}
 			} else {
 				File src = it.files.find();
 				logger.lifecycle "Cp $src..."
 				if (it.files.size() != 1) {
-					logger.lifecycle "  WARN: Duplicated: $it"
+					logger.warn "Duplicated: $it"
 				}
 				GFileUtils.copyFile(src, destFile)
 			}

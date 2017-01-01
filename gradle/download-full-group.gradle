@@ -1,5 +1,7 @@
 apply from: 'https://raw.githubusercontent.com/idosu/scripts/master/gradle/full-download-from-central.gradle'
 
+import org.apache.tools.ant.taskdefs.condition.Os
+
 def central(String group, String version) {
 	def q = URLEncoder.encode("g:\"$group\" AND v:\"$version\"", "UTF-8")
 	def start = 0;
@@ -33,13 +35,18 @@ ext.a = { String entry ->
 	
 	def file = file('download.gradle')
 
+	def executable = "gradle"
+	if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+		executable += ".bat"
+	}
+
 	file.text = """
 		apply plugin: 'java'
 		apply plugin: 'eclipse'
 		repositories { mavenCentral() }
 		dependencies { $deps }
 	"""
-	exec { commandLine 'gradle.bat', '--no-daemon', '-b', file.name, 'eclipseClasspath' }
+	exec { commandLine executable, '--no-daemon', '-b', file.name, 'eclipseClasspath' }
 }
 
 task download()
